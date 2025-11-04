@@ -9,7 +9,8 @@ Gemini Based Solution System
 - Empty `cloned_repo` and `embeddings` directory.
 - Make sure `all-MiniLM-L6-v2` is installed locally.
 - `.env` file having:
-    ```GITHUB_TOKEN = "----"
+    ```
+    GITHUB_TOKEN = "----"
     GEMINI_API_KEY = "----"
     GROQ_API_KEY= "-----"
     SECRET_KEY = "secretkey123" 
