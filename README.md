@@ -1,4 +1,4 @@
-# Desolve-mini Shubhankar
+# Desolve-mini
 Gemini Based Solution System
 
 # Testing Repos:
