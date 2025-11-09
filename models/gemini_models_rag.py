@@ -11,42 +11,56 @@ import faiss
 # =====================================================
 
 MODEL_NAME = "gemini-2.5-flash-lite"
-FILES_CSV = r"C:\Users\hp\Desktop\MinorProj\Desolve-mini\data\repo_files_data.csv"
-ISSUES_CSV = r"C:\Users\hp\Desktop\MinorProj\Desolve-mini\data\repo_issues.csv"
-CUSTOM_MODEL_PATH = r"C:\Users\hp\Desktop\prashna\models\all-MiniLM-L6-v2"
-INDEX_PATH = r"C:\Users\hp\Desktop\MinorProj\Desolve-mini\embeddings\repo_index.pkl"
+FILES_CSV = r"data/repo_files_data.csv"
+ISSUES_CSV = r"data/repo_issues.csv"
+# Using relative path for better portability
+CUSTOM_MODEL_PATH = r"sentence-transformers/all-MiniLM-L6-v2"
+INDEX_PATH = r"embeddings/repo_index.pkl"
 
 # FILES_CSV = "repo_files_data.csv"
 # ISSUES_CSV = "repo_issues.csv"
 # CUSTOM_MODEL_PATH = "all-MiniLM-L6-v2"
 TOP_K = 30  # Number of most relevant files to retrieve per issue
-ROW_INDEX = 3  # 4th issue (0-based)
+# ROW_INDEX = 3  # No longer needed, will be dynamic
 
 # =====================================================
 # LOAD ENVIRONMENT VARIABLES
 # =====================================================
 def load_env_and_configure():
+    """Loads .env file and configures the GenAI API key."""
     load_dotenv()
     GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
 
     if not GOOGLE_API_KEY:
         print("❌ GEMINI_API_KEY not found in .env file.")
-        exit(1)
+        # In a server context, we should raise an error, not exit
+        raise ValueError("GEMINI_API_KEY not found in .env file.")
 
     genai.configure(api_key=GOOGLE_API_KEY)
+    print("✅ GEMINI_API_KEY configured.")
     return GOOGLE_API_KEY
 
 
 # =====================================================
-# BUILD VECTOR INDEX (RUN ONCE)
+# BUILD VECTOR INDEX (RUN ONCE PER REPO)
 # =====================================================
 def build_vector_index():
+    """Builds and saves a FAISS vector index from the repo files CSV."""
     print("🧠 Building vector index from repo files...")
+
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(FILES_CSV), exist_ok=True)
+    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
+
+    if not os.path.exists(FILES_CSV):
+        print(f"❌ Files CSV not found at {FILES_CSV}. Cannot build index.")
+        raise FileNotFoundError(f"Required file not found: {FILES_CSV}")
 
     df = pd.read_csv(FILES_CSV, encoding="utf-8")
     if df.empty:
         print("❌ No files found in repo_files_data.csv")
-        exit(1)
+        # Don't exit, just raise an error for the server to handle
+        raise ValueError("No files found in repo_files_data.csv to build index.")
 
     print(f"📄 Total files: {len(df)}")
 
@@ -66,6 +80,7 @@ def build_vector_index():
 # LOAD INDEX & RETRIEVE RELEVANT FILES
 # =====================================================
 def retrieve_relevant_files(query: str, top_k: int = TOP_K):
+    """Retrieves context from the vector index based on a query."""
     if not os.path.exists(INDEX_PATH):
         print("⚠️ Index not found. Building one now...")
         build_vector_index()
@@ -93,6 +108,7 @@ def retrieve_relevant_files(query: str, top_k: int = TOP_K):
 # CREATE PROMPT FOR GEMINI
 # =====================================================
 def create_prompt(issue: dict, repo_context: str) -> str:
+    """Creates the initial system-level prompt for the AI."""
     issue_title = issue.get("title", "Untitled Issue")
     issue_body = issue.get("body", "No description provided.")
     issue_number = issue.get("number", "N/A")
@@ -118,50 +134,14 @@ Your task:
 # LOAD ISSUE
 # =====================================================
 def load_issue(issue_csv: str, row_index: int = 0):
+    """Loads a specific issue by its row index in the CSV."""
     df = pd.read_csv(issue_csv)
     if len(df) <= row_index:
         print(f"❌ CSV has only {len(df)} issues. Row {row_index + 1} not found.")
-        exit(1)
+        raise IndexError(f"Row index {row_index} out of bounds for issues CSV.")
     return df.to_dict(orient="records")[row_index]
 
-
-# =====================================================
-# GEMINI CHAT SESSION
-# =====================================================
-def start_chat(system_prompt: str, model_name: str):
-    """Starts CLI-based Gemini chat session."""
-    model = genai.GenerativeModel(model_name)
-    chat = model.start_chat(history=[{"role": "user", "parts": system_prompt}])
-
-    print("\n🤖 Desolve AI: RAG-based contextual chat initialized!\n")
-
-    while True:
-        user_input = input("👨‍💻 You: ").strip()
-        if user_input.lower() in ["exit", "quit", "q"]:
-            print("👋 Exiting chat. Goodbye!")
-            break
-
-        try:
-            response = chat.send_message(user_input)
-            print("\n🤖 Desolve AI:\n")
-            print(response.text)
-            print("\n" + "-" * 100 + "\n")
-        except Exception as e:
-            print(f"⚠️ Error: {e}")
-
-
-# =====================================================
-# MAIN
-# =====================================================
-# if __name__ == "__main__":
-#     load_env_and_configure()
-
-#     if not os.path.exists(INDEX_PATH):
-#         build_vector_index()
-
-#     issue = load_issue(ISSUES_CSV, row_index=ROW_INDEX)
-#     repo_context = retrieve_relevant_files(issue["body"])
-#     system_prompt = create_prompt(issue, repo_context)
-
-#     print(f"\n📂 Loaded Issue #{issue.get('number', 'N/A')} — “{issue.get('title', '')}”")
-#     start_chat(system_prompt, MODEL_NAME)
+#
+# ℹ️ NOTE: The CLI-specific 'start_chat' and '__main__' block
+# have been removed. FastAPI in `main.py` will now handle this.
+#
