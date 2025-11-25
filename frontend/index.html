@@ -3,31 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Issue AI Assistant</title>
-    <!-- Importing Tailwind CSS -->
+    <title>Desolve AI - Multi-Model Issue Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ADD THIS SCRIPT to parse Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        /* Custom scrollbar for chat */
         #chat-log::-webkit-scrollbar {
             width: 8px;
         }
         #chat-log::-webkit-scrollbar-track {
-            background: #f1f5f9; /* cool-gray-100 */
+            background: #f1f5f9;
         }
         #chat-log::-webkit-scrollbar-thumb {
-            background: #94a3b8; /* cool-gray-400 */
+            background: #94a3b8;
             border-radius: 4px;
         }
         #chat-log::-webkit-scrollbar-thumb:hover {
-            background: #64748b; /* cool-gray-500 */
+            background: #64748b;
         }
         
-        /* Simple loading spinner */
         .spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #3b82f6; /* blue-500 */
+            border-left-color: #3b82f6;
             border-radius: 50%;
             width: 24px;
             height: 24px;
@@ -37,13 +33,23 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Styling for selected issue */
         .issue-item.selected {
-            background-color: #dbeafe; /* blue-100 */
-            border-left-color: #3b82f6; /* blue-500 */
+            background-color: #dbeafe;
+            border-left-color: #3b82f6;
         }
 
-        /* --- ADD STYLING FOR FORMATTED AI RESPONSES --- */
+        .model-option {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .model-option.selected {
+            background-color: #dbeafe;
+            border: 2px solid #3b82f6;
+        }
+        .model-option:not(.selected) {
+            border: 2px solid #e5e7eb;
+        }
+
         .ai-message-content ul {
             list-style-type: disc;
             list-style-position: inside;
@@ -59,10 +65,10 @@
             margin-bottom: 0.5rem;
         }
         .ai-message-content pre {
-            background-color: #1f2937; /* gray-800 */
-            color: #f3f4f6; /* gray-100 */
+            background-color: #1f2937;
+            color: #f3f4f6;
             padding: 0.75rem;
-            border-radius: 0.375rem; /* rounded-md */
+            border-radius: 0.375rem;
             overflow-x: auto;
             margin-top: 0.75rem;
             margin-bottom: 0.75rem;
@@ -71,34 +77,66 @@
             font-family: monospace;
         }
         .ai-message-content p {
-            margin-bottom: 0.5rem; /* Add space between paragraphs */
+            margin-bottom: 0.5rem;
         }
-        /* --- END OF STYLING --- */
 
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 font-sans antialiased">
 
-    <div class="container mx-auto max-w-6xl p-4 md:p-8">
+    <div class="container mx-auto max-w-7xl p-4 md:p-8">
         
         <!-- Header -->
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">GitHub Issue AI Assistant</h1>
-            <p class="text-gray-600">Enter a repository URL to fetch issues and get AI-powered help.</p>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h1 class="text-4xl font-bold text-gray-800">🤖 Desolve AI</h1>
+                    <p class="text-gray-600 mt-1">Multi-Model GitHub Issue Solver</p>
+                </div>
+                <div id="current-model" class="text-right">
+                    <p class="text-sm text-gray-500">Current Model:</p>
+                    <p id="model-display" class="text-lg font-semibold text-blue-600">Not Selected</p>
+                </div>
+            </div>
         </header>
 
-        <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <!-- Left Column: Input and Issues -->
-            <div class="flex flex-col space-y-6">
+            <!-- Left Column: Input, Model Selection & Issues -->
+            <div class="lg:col-span-1 flex flex-col space-y-6">
                 
-                <!-- 1. GitHub URL Input -->
+                <!-- Model Selection -->
+                <div class="bg-white p-6 rounded-lg shadow-md border-2 border-purple-200">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-700">🎯 Select AI Model</h2>
+                    <div id="model-selection" class="space-y-3">
+                        <!-- Models will be loaded dynamically -->
+                        <div class="model-option p-4 border-2 border-gray-300 rounded-lg hover:border-blue-400 transition" data-model="gemini">
+                            <h3 class="font-semibold text-gray-800">Google Gemini</h3>
+                            <p class="text-sm text-gray-600">Fast and reliable</p>
+                        </div>
+                        <div class="model-option p-4 border-2 border-gray-300 rounded-lg hover:border-blue-400 transition" data-model="groq">
+                            <h3 class="font-semibold text-gray-800">Groq</h3>
+                            <p class="text-sm text-gray-600">High performance</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GitHub URL Input -->
                 <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Fetch Repository</h2>
-                    <form id="repo-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                        <input type="text" id="github-url" placeholder="Enter GitHub URL (e.g., https://github.com/user/repo)" class="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                        <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-md font-medium hover:bg-blue-700 transition duration-200 flex items-center justify-center">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-700">📥 Fetch Repository</h2>
+                    <form id="repo-form" class="flex flex-col space-y-2">
+                        <input type="text" id="github-url" placeholder="https://github.com/user/repo" 
+                               class="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                               required>
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition flex items-center justify-center">
                             <span id="fetch-button-text">Fetch Issues</span>
                             <div id="fetch-loader" class="spinner hidden ml-2"></div>
                         </button>
@@ -106,39 +144,43 @@
                     <div id="error-message" class="text-red-600 mt-2 text-sm"></div>
                 </div>
 
-                <!-- 2. Issues List -->
+                <!-- Issues List -->
                 <div class="bg-white p-6 rounded-lg shadow-md flex-grow">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">2. Select an Issue</h2>
+                    <h2 class="text-lg font-semibold mb-4 text-gray-700">🐞 Select Issue</h2>
                     <div id="issues-list-container" class="h-96 overflow-y-auto bg-gray-50 p-3 rounded-md border border-gray-200">
-                        <p id="issues-placeholder" class="text-gray-500 text-center pt-4">Issues will appear here after fetching...</p>
-                        <!-- Issues will be dynamically inserted here -->
+                        <p id="issues-placeholder" class="text-gray-500 text-center pt-4">Issues will appear here...</p>
                     </div>
                 </div>
 
             </div>
 
-            <!-- Right Column: AI Chat -->
-            <div class="bg-white p-6 rounded-lg shadow-md flex flex-col">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">3. Chat with AI</h2>
-                
-                <!-- Chat Log -->
-                <div id="chat-log" class="flex-grow h-96 overflow-y-auto bg-gray-50 p-4 rounded-md border border-gray-200 mb-4 space-y-4">
-                    <div id="chat-placeholder" class="flex h-full items-center justify-center">
-                        <p class="text-gray-500 text-center">Please select an issue to start chatting.</p>
+            <!-- Right Column: Chat -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full">
+                <div class="p-6 flex flex-col h-full">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">💬 AI Assistant</h2>
+                    
+                    <!-- Chat Log -->
+                    <div id="chat-log" class="flex-grow overflow-y-auto bg-gray-50 p-4 rounded-md border border-gray-200 mb-4 space-y-4">
+                        <div id="chat-placeholder" class="flex h-full items-center justify-center">
+                            <p class="text-gray-500 text-center">Select an issue to start chatting</p>
+                        </div>
                     </div>
-                    <!-- Chat messages will be dynamically inserted here -->
-                </div>
-                
-                <!-- Chat Input Form -->
-                <form id="chat-form" class="flex space-x-2">
-                    <input type="text" id="chat-input" placeholder="Ask about the selected issue..." class="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" disabled>
-                    <button type="submit" id="chat-send-button" class="bg-green-600 text-white px-5 py-2 rounded-md font-medium hover:bg-green-700 transition duration-200 flex items-center justify-center" disabled>
-                        <span>Send</span>
-                    </button>
-                </form>
-                <div id="chat-loader" class="text-sm text-gray-600 mt-2 hidden flex items-center">
-                    <div class="spinner mr-2"></div>
-                    AI is thinking...
+                    
+                    <!-- Chat Input -->
+                    <form id="chat-form" class="flex flex-col space-y-2">
+                        <div class="flex space-x-2">
+                            <input type="text" id="chat-input" placeholder="Ask about the issue..." 
+                                   class="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" 
+                                   disabled>
+                            <button type="submit" id="chat-send-button" 
+                                    class="bg-green-600 text-white px-5 py-2 rounded-md font-medium hover:bg-green-700 transition disabled:bg-gray-400" 
+                                    disabled>Send</button>
+                        </div>
+                        <div id="chat-loader" class="text-sm text-gray-600 hidden flex items-center">
+                            <div class="spinner mr-2"></div>
+                            <span id="loader-text">AI is thinking...</span>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -147,151 +189,167 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            
-            // --- DOM Element References ---
+            // DOM References
+            const modelSelection = document.getElementById('model-selection');
+            const modelDisplay = document.getElementById('model-display');
             const repoForm = document.getElementById('repo-form');
             const githubUrlInput = document.getElementById('github-url');
             const fetchButtonText = document.getElementById('fetch-button-text');
             const fetchLoader = document.getElementById('fetch-loader');
             const errorMessage = document.getElementById('error-message');
-            
             const issuesListContainer = document.getElementById('issues-list-container');
             const issuesPlaceholder = document.getElementById('issues-placeholder');
-            
             const chatLog = document.getElementById('chat-log');
             const chatPlaceholder = document.getElementById('chat-placeholder');
             const chatForm = document.getElementById('chat-form');
             const chatInput = document.getElementById('chat-input');
             const chatSendButton = document.getElementById('chat-send-button');
             const chatLoader = document.getElementById('chat-loader');
+            const loaderText = document.getElementById('loader-text');
 
-            // --- State ---
+            // State
+            let selectedModel = null;
             let selectedIssueId = null;
-            let selectedIssueTitle = "";
 
-            // --- Form Handlers ---
+            // ============================================
+            // INITIALIZE MODEL SELECTION
+            // ============================================
+            function initializeModelSelection() {
+                // Add click handlers to model options
+                document.querySelectorAll('.model-option').forEach(el => {
+                    el.addEventListener('click', () => selectModel(el.dataset.model));
+                });
+                
+                // Set default to first model
+                selectModel('gemini');
+            }
 
-            /**
-             * Handles the "Fetch Repo" form submission.
-             * This will call your /process-repo endpoint.
-             */
+            function selectModel(model) {
+                selectedModel = model;
+                
+                // Update UI
+                document.querySelectorAll('.model-option').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                document.querySelector(`[data-model="${model}"]`).classList.add('selected');
+                
+                // Update display
+                const displayName = model.charAt(0).toUpperCase() + model.slice(1);
+                modelDisplay.textContent = displayName;
+                
+                console.log(`✅ Selected model: ${model}`);
+                errorMessage.textContent = '';
+            }
+
+            // ============================================
+            // FETCH REPOSITORY
+            // ============================================
             repoForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
+                if (!selectedModel) {
+                    errorMessage.textContent = '❌ Please select an AI model first';
+                    return;
+                }
+
                 const url = githubUrlInput.value.trim();
                 if (!url) return;
 
-                // --- UI: Start Loading ---
                 setLoadingState(true);
                 clearIssues();
                 clearChat();
                 disableChat();
 
                 try {
-                    // --- API CALL 1: Process Repo ---
-                    // This function calls your FastAPI backend.
-                    // It expects an endpoint at `/process-repo`
-                    // Request: POST { "url": "..." }
-                    // Response: { "issues": [{"id": 1, "title": "...", "body": "..."}, ...] }
-                    //
                     const response = await fetch('/process-repo', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ url: url }),
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            url: url, 
+                            model: selectedModel 
+                        }),
                     });
 
                     if (!response.ok) {
                         const errorData = await response.json();
-                        throw new Error(errorData.detail || `Server error: ${response.status}`);
+                        throw new Error(errorData.detail || 'Unknown error');
                     }
 
                     const data = await response.json();
                     
                     if (data.issues && data.issues.length > 0) {
                         displayIssues(data.issues);
+                        errorMessage.textContent = `✅ Found ${data.issues.length} issues`;
                     } else {
-                        showIssuesPlaceholder('No issues found for this repository.');
+                        showIssuesPlaceholder('No issues found');
                     }
 
                 } catch (error) {
-                    console.error('Error fetching repo:', error);
-                    errorMessage.textContent = `Failed to fetch repo: ${error.message}`;
+                    console.error('Error:', error);
+                    errorMessage.textContent = `❌ ${error.message}`;
                 } finally {
-                    // --- UI: Stop Loading ---
                     setLoadingState(false);
                 }
             });
 
-            /**
-             * Handles the "Send" chat form submission.
-             * This will call your /ask-ai endpoint.
-             */
+            // ============================================
+            // CHAT SUBMISSION
+            // ============================================
             chatForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const prompt = chatInput.value.trim();
                 if (!prompt || !selectedIssueId) return;
 
-                // --- UI: Show User Message ---
                 addChatMessage('user', prompt);
                 chatInput.value = '';
-                setChatLoading(true);
+                setChatLoading(true, 'AI is analyzing...');
 
                 try {
-                    // --- API CALL 2: Ask AI ---
-                    // This function calls your FastAPI backend.
-                    // It expects an endpoint at `/ask-ai`
-                    // Request: POST { "issue_id": ..., "prompt": "..." }
-                    // Response: { "response": "..." }
-                    //
                     const response = await fetch('/ask-ai', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             issue_id: selectedIssueId,
-                            prompt: prompt
+                            prompt: prompt,
+                            model: selectedModel
                         }),
                     });
 
                     if (!response.ok) {
                         const errorData = await response.json();
-                        throw new Error(errorData.detail || `Server error: ${response.status}`);
+                        throw new Error(errorData.detail || 'Unknown error');
                     }
 
                     const data = await response.json();
-                    
-                    // --- UI: Show AI Message ---
                     addChatMessage('ai', data.response);
 
                 } catch (error) {
-                    console.error('Error asking AI:', error);
-                    addChatMessage('ai', `Sorry, I encountered an error: ${error.message}`, true);
+                    console.error('Error:', error);
+                    addChatMessage('ai', `❌ Error: ${error.message}`, true);
                 } finally {
-                    // --- UI: Stop Chat Loading ---
                     setChatLoading(false);
                 }
             });
 
-            // --- UI Helper Functions ---
-
+            // ============================================
+            // UI HELPERS
+            // ============================================
             function setLoadingState(isLoading) {
                 if (isLoading) {
                     fetchButtonText.textContent = 'Fetching...';
                     fetchLoader.classList.remove('hidden');
                     githubUrlInput.disabled = true;
-                    errorMessage.textContent = '';
                 } else {
                     fetchButtonText.textContent = 'Fetch Issues';
                     fetchLoader.classList.add('hidden');
                     githubUrlInput.disabled = false;
                 }
             }
-            
-            function setChatLoading(isLoading) {
+
+            function setChatLoading(isLoading, text = 'AI is thinking...') {
                 if (isLoading) {
                     chatLoader.classList.remove('hidden');
+                    loaderText.textContent = text;
                     chatInput.disabled = true;
                     chatSendButton.disabled = true;
                 } else {
@@ -301,7 +359,7 @@
                     chatInput.focus();
                 }
             }
-            
+
             function clearIssues() {
                 issuesListContainer.innerHTML = '';
             }
@@ -315,43 +373,33 @@
             }
 
             function displayIssues(issues) {
-                clearIssues(); // Clear placeholder or old issues
+                clearIssues();
                 issues.forEach(issue => {
-                    const issueEl = document.createElement('div');
-                    issueEl.className = 'issue-item p-3 border-l-4 border-gray-300 bg-white hover:bg-gray-50 cursor-pointer mb-2 rounded-r-md transition duration-150';
-                    issueEl.innerHTML = `
+                    const el = document.createElement('div');
+                    el.className = 'issue-item p-3 border-l-4 border-gray-300 bg-white hover:bg-gray-50 cursor-pointer mb-2 rounded-r-md transition duration-150 fade-in';
+                    el.innerHTML = `
                         <div class="font-medium text-gray-800">#${issue.id}: ${escapeHTML(issue.title)}</div>
-                        <p class="text-sm text-gray-600 truncate">${escapeHTML(issue.body.substring(0, 100))}...</p>
+                        <p class="text-sm text-gray-600 truncate">${escapeHTML(issue.body.substring(0, 80))}...</p>
                     `;
-                    issueEl.dataset.id = issue.id;
-                    issueEl.dataset.title = issue.title;
+                    el.dataset.id = issue.id;
 
-                    // --- Issue Click Handler ---
-                    issueEl.addEventListener('click', () => handleIssueClick(issueEl, issue));
-                    
-                    issuesListContainer.appendChild(issueEl);
+                    el.addEventListener('click', () => handleIssueClick(el, issue));
+                    issuesListContainer.appendChild(el);
                 });
             }
 
             function handleIssueClick(element, issue) {
-                // Remove 'selected' from all other items
                 document.querySelectorAll('.issue-item.selected').forEach(item => {
                     item.classList.remove('selected');
                 });
-
-                // Add 'selected' to the clicked item
                 element.classList.add('selected');
                 
-                // Update state
                 selectedIssueId = issue.id;
-                selectedIssueTitle = issue.title;
-
-                // Setup chat
                 enableChat();
                 clearChat();
-                addChatMessage('system', `Ready to chat about issue #${selectedIssueId}: "${escapeHTML(selectedIssueTitle)}"`);
+                addChatMessage('system', `Issue #${issue.id}: ${escapeHTML(issue.title)}`);
             }
-            
+
             function clearChat() {
                 chatLog.innerHTML = '';
             }
@@ -367,15 +415,8 @@
                 chatInput.disabled = true;
                 chatSendButton.disabled = true;
                 selectedIssueId = null;
-                selectedIssueTitle = "";
             }
 
-            /**
-             * Adds a message to the chat log.
-             * @param {'user' | 'ai' | 'system'} role - The sender of the message.
-             * @param {string} text - The message content.
-             * @param {boolean} isError - If the message is an error message.
-             */
             function addChatMessage(role, text, isError = false) {
                 chatPlaceholder.classList.add('hidden');
                 
@@ -396,66 +437,51 @@
                         textClass = 'text-red-900';
                     }
                 } else if (role === 'system') {
-                    bgClass = 'bg-gray-200';
-                    textClass = 'text-gray-600 text-sm italic text-center';
+                    bgClass = 'bg-blue-50';
+                    textClass = 'text-blue-800 text-sm italic';
                     alignClass = 'self-center';
                 }
                 
-                messageEl.className = `p-3 rounded-lg max-w-xs md:max-w-md ${bgClass} ${textClass} ${alignClass}`;
+                messageEl.className = `p-3 rounded-lg max-w-xs md:max-w-md ${bgClass} ${textClass} ${alignClass} fade-in`;
                 
-                // --- START OF CHANGES ---
-                // We'll now render Markdown for AI, but keep text for user/system
                 if (role === 'ai') {
-                    // This div will hold the formatted HTML
                     const contentDiv = document.createElement('div');
-                    contentDiv.className = 'ai-message-content'; // Apply our new styles
-                    
-                    // Use marked.js to safely parse and render the Markdown
+                    contentDiv.className = 'ai-message-content';
                     contentDiv.innerHTML = marked.parse(text);
                     
-                    // Add tailwind classes to elements created by marked
                     contentDiv.querySelectorAll('pre').forEach(pre => {
-                         pre.className = 'bg-gray-800 text-white p-3 rounded-md overflow-x-auto text-sm my-2';
+                        pre.className = 'bg-gray-800 text-white p-3 rounded-md overflow-x-auto text-sm my-2';
                     });
-                    contentDiv.querySelectorAll('ul').forEach(ul => {
-                        ul.className = 'list-disc list-inside ml-4 my-2';
-                    });
-                    contentDiv.querySelectorAll('ol').forEach(ol => {
-                        ol.className = 'list-decimal list-inside ml-4 my-2';
-                    });
-                     contentDiv.querySelectorAll('p').forEach((p, index) => {
-                        if (index > 0) p.className = 'mt-2'; // Add margin to paragraphs
+                    contentDiv.querySelectorAll('ul, ol').forEach(list => {
+                        list.className = 'ml-4 my-2';
                     });
                     
                     messageEl.appendChild(contentDiv);
                 } else {
-                    // For 'user' and 'system' messages, just use plain text
                     messageEl.textContent = text;
                 }
-                // --- END OF CHANGES ---
                 
-                // Need a wrapper for alignment
                 const wrapper = document.createElement('div');
                 wrapper.className = 'flex flex-col';
                 wrapper.appendChild(messageEl);
-
                 chatLog.appendChild(wrapper);
-                
-                // Scroll to bottom
                 chatLog.scrollTop = chatLog.scrollHeight;
             }
 
             function escapeHTML(str) {
-                return str.replace(/[&<>"']/g, function(m) {
-                    return {
-                        '&': '&amp;',
-                        '<': '&lt;',
-                        '>': '&gt;',
-                        '"': '&quot;',
-                        "'": '&#039;'
-                    }[m];
-                });
+                return str.replace(/[&<>"']/g, m => ({
+                    '&': '&amp;', 
+                    '<': '&lt;', 
+                    '>': '&gt;',
+                    '"': '&quot;', 
+                    "'": '&#039;'
+                }[m]));
             }
+
+            // ============================================
+            // INITIALIZATION
+            // ============================================
+            initializeModelSelection();
         });
     </script>
 </body>
