@@ -4,6 +4,9 @@ Gemini Based Solution System
 # Testing Repos:
 - https://github.com/FreeBirdsCrew/AI_ChatBot_Python
 - https://github.com/AlaGrine/RAG_chatabot_with_Langchain
+- https://github.com/ryo-ma/github-profile-trophy
+- https://github.com/EbookFoundation/free-programming-books
+- https://github.com/abhisheknaiidu/awesome-github-profile-readme
 
 # How to run
 - Empty `cloned_repo` and `embeddings` directory.

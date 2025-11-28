@@ -3,7 +3,8 @@ import shutil
 import uvicorn
 import pandas as pd
 from fastapi import FastAPI, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -118,7 +119,9 @@ def cleanup_temp_data():
 
 
 def load_issue_by_id(csv_path: str, issue_id: int) -> dict | None:
-    """Loads a specific issue from the CSV using its GitHub issue number (id)."""
+    """Loads a specific issue from the CSV using its GitHub issue number (id).
+    Ensures textual fields are strings (no NaN floats).
+    """
     if not os.path.exists(csv_path):
         return None
 
@@ -127,12 +130,32 @@ def load_issue_by_id(csv_path: str, issue_id: int) -> dict | None:
     if 'number' not in df.columns:
         return None
 
+    # Replace NaN with empty strings and coerce types for safety
+    df = df.fillna("")
+
+    # ensure 'number' column is comparable to issue_id
+    try:
+        df['number'] = pd.to_numeric(df['number'], errors='coerce')
+    except Exception:
+        pass
+
     issue_df = df[df['number'] == issue_id]
 
     if issue_df.empty:
         return None
 
-    return issue_df.to_dict(orient="records")[0]
+    record = issue_df.to_dict(orient="records")[0]
+
+    # Make sure textual fields are strings
+    for k, v in record.items():
+        if v is None:
+            record[k] = ""
+        elif isinstance(v, float) and pd.isna(v):
+            record[k] = ""
+        elif not isinstance(v, (str, int, bool, list, dict)):
+            record[k] = str(v)
+
+    return record
 
 
 # --- API Endpoint 1: Process Repository ---
@@ -169,24 +192,48 @@ async def process_repo(request: RepoRequest):
         extract_issues(request.url, output_file=ISSUES_CSV, token=token)
 
         print("🧠 Building vector index...")
-        build_vector_index()
+        try:
+            build_vector_index()
+        except Exception as e_index:
+            # Log and continue — index build failure shouldn't return NaN errors
+            print(f"⚠️ Warning: failed to build vector index: {e_index}")
 
         print("✅ Processing complete.")
         if not os.path.exists(ISSUES_CSV):
             raise FileNotFoundError(f"Issues CSV not created at {ISSUES_CSV}")
 
+        # Read issues and sanitize (remove NaN, convert to plain python types)
         df_issues = pd.read_csv(ISSUES_CSV)
 
         if 'number' not in df_issues.columns:
             raise KeyError("Issues CSV must contain a 'number' column.")
 
-        df_issues['id'] = df_issues['number']
-        issues_list = df_issues[['id', 'title', 'body']].to_dict(orient="records")
+        # Replace NaN with empty strings for all columns (prevents float NaN)
+        df_issues = df_issues.fillna("")
 
-        return {"issues": issues_list, "model": request.model}
+        # Ensure id column exists and is JSON-safe
+        df_issues['id'] = df_issues['number']
+
+        # Select only the fields we want to return and ensure plain python types
+        issues_df_subset = df_issues[['id', 'title', 'body']].copy()
+
+        # Convert any non-primitive values to strings (defensive)
+        for col in ['id', 'title', 'body']:
+            issues_df_subset[col] = issues_df_subset[col].apply(
+                lambda v: "" if v is None else (str(v) if not isinstance(v, (str, int, bool, list, dict)) else v)
+            )
+
+        issues_list = issues_df_subset.to_dict(orient="records")
+
+        # Make sure everything is JSON-serializable (handle numpy / pandas dtypes)
+        safe_payload = jsonable_encoder({"issues": issues_list, "model": request.model})
+
+        return JSONResponse(content=safe_payload)
 
     except Exception as e:
         print(f"❌ Error during repo processing: {e}")
+        # Log stacktrace if you want more detail (optional)
+        # import traceback; traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred: {str(e)}"

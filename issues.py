@@ -55,10 +55,11 @@ def extract_issues(repo_url, output_file="issues.csv", token=None):
 
         
         page += 1
-    
+
     # Convert to DataFrame and save
     df = pd.DataFrame(issues_data)
-    df.to_csv(output_file, index=False)
+    df = df.fillna("")
+    df.to_csv(output_file, index=False, encoding="utf-8", na_rep="")
     print(f"✅ Extracted {len(issues_data)} issues to {output_file}")
 
 
