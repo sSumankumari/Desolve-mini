@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware  # <-- ADDED IMPORT
 from pydantic import BaseModel
 import google.generativeai as genai
 from groq import Groq
@@ -52,6 +53,14 @@ except ValueError as e:
     print(f"⚠️ Groq API key not found: {e}")
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"],  
+)
 
 # --- Global State ---
 gemini_model = genai.GenerativeModel(GEMINI_MODEL_NAME)
